@@ -5,7 +5,6 @@ from pydub import AudioSegment
 from pydub.silence import split_on_silence, detect_silence,detect_nonsilent
 
 
-#
 def comp_sub(c,h): #对比自动字幕和脚本字幕的匹配度，分数越高越匹配；c代表自动字幕，h代表脚本字幕
     n=0
     ch_num = {'1': '一', '2': '二', '3': '三', '4': '四', '5': '五', '6': '六', '7': '七', '8': '八', '9': '九', '0': '零'}
@@ -27,9 +26,6 @@ def comp_sub(c,h): #对比自动字幕和脚本字幕的匹配度，分数越高
     return res
 
 def gen_sub(sub_c,sub_h):  #给字幕打轴,sub_c表示自动字幕列表,sub_h表示脚本字幕列表
-    # subs_f=[]
-    # res_h = []
-    # res_c = []
     dic_h={}   #用于记录所有脚本字幕的匹配评分
     dic_c={}   #用于记录所有自动字幕的匹配评分
     i = 0     #自动字幕序号（索引）
@@ -56,19 +52,11 @@ def gen_sub(sub_c,sub_h):  #给字幕打轴,sub_c表示自动字幕列表,sub_h�
         # #匹配自动字幕和脚本字幕并获取分数
         res=comp_sub(sub_c.__getitem__(i).content,sub_h[sub_i])
 
-        if(res>score_1):   #如果匹配度大于90则直接将脚本字幕复制给自动字幕
+        if(res>score_1):   #如果匹配度大于score_1则直接将脚本字幕复制给自动字幕
             ttt = sub_c.__getitem__(i).content
             zzz = sub_h[sub_i]
             sub_c.__getitem__(i).content=sub_h[sub_i]
         elif (sub_c.__getitem__(i).content == "tzkcaNNotrecognize!"):  # 如果是没识别出的语音
-            #以下是为了便于调试程序
-            print("time:", audio_du[i])                          #当前语音时长
-            print("c_subtitle:", sub_c.__getitem__(i).content)   #当前自动字幕内容应该是"tzkcaNNotrecognize!"
-            print("h_subtitle:",sub_h[sub_i])                  #当前脚本字幕内容
-            print("h_length:",len(sub_h[sub_i].strip()))       #当前脚本字幕长度
-            print("h_duation:",len(sub_h[sub_i].strip())*word_l)  #读出当前脚本字幕可能需要的时间
-            print("h_duation:", audio_du[i] / (len(sub_h[sub_i].strip()) * word_l))
-            sub_tmp=re.sub(r'[\(\（]\w+[\)\）]',"",sub_h[sub_i].strip())
             time_tmp=audio_du[i]
             if((audio_du[i]/(len(sub_tmp)*word_l))>0.5): #这是模拟汉字字幕时的情况，如果中英文混杂，该模型误差较大
                 zzz = sub_h[sub_i]
@@ -99,21 +87,13 @@ def gen_sub(sub_c,sub_h):  #给字幕打轴,sub_c表示自动字幕列表,sub_h�
                         res2=comp_sub(sub_stdc,sub_tmp.strip()+sub_h[sub_i+1])
                     else:
                         break    #如果已经匹配过最后一条脚本字幕则跳出while循环
-                if (res>score_2):  #将匹配度最高，且大于80分的脚本字幕赋值给自动字幕
+                if (res>score_2):  #将匹配度最高，且大于score_2的脚本字幕赋值给自动字幕
                     ttt = sub_c.__getitem__(i).content
                     zzz = sub_h[sub_i]
                     sub_c.__getitem__(i).content = sub_tmp
-                # else:  #如果匹配度最高的得分低于80，则回退直至大于80或者回退到开始比对时的第一个脚本字幕（退无可退了）
                 else:    #如果匹配度最高的得分低于80，则回退至一开始比对的脚本字幕
                     sub_i=sub_i_bgn
                     sub_c.__getitem__(i).content = sub_h[sub_i]
-                    # while (sub_i > sub_i_bgn and dic_h[str(sub_i)] <= score_2):
-                    #     sub_i=int(sub_i)
-                    #     sub_i -= 1
-                    # # sub_i -= 1
-                    # ttt = sub_c.__getitem__(i).content
-                    # zzz = sub_h[sub_i]
-                    # sub_c.__getitem__(i).content = sub_h[sub_i]
             else: #如果联合下一个脚本字幕一起和当前自动字幕比对匹配度反而更低，则直接将当前脚本字幕赋值给自动字幕
                 ttt = sub_c.__getitem__(i).content
                 zzz = sub_h[sub_i]
@@ -155,22 +135,6 @@ def gen_sub(sub_c,sub_h):  #给字幕打轴,sub_c表示自动字幕列表,sub_h�
                         del audio_du[dn]       #删除匹配过的自动字幕对应的时间
                         dn -= 1
                     i = i_bgn  # 回归i计数，结合最后的i加1一起理解
-                # else:  #如果匹配度最高的得分低于80，则再退一次（还得优化为循环往后退，直至大于80）
-                #     while(i>i_bgn and dic_c[str(i)]<=score_2):
-                #         i=int(i)
-                #         i -= 1
-                #     # i -= 1 #抵消上面的i+1
-                #     ttt = sub_c.__getitem__(i_bgn).content
-                #     zzz = sub_h[sub_i]
-                #     sub_c.__getitem__(i_bgn).content = sub_stdh
-                #     sub_c.__getitem__(i_bgn).end = sub_c.__getitem__(i).end
-                #     dn = i
-                #     while (dn > i_bgn):
-                #         ttt = sub_c.__getitem__(dn).content
-                #         sub_c.__delitem__(dn)    #有漏删除的情况发生
-                #         del audio_du[dn]
-                #         dn -= 1
-                #     i =i_bgn #抵消下面的i加1
                 else: #如果匹配度最高的得分低于80，则回退至一开始比对的自动字幕
                     sub_c.__getitem__(i_bgn).content = sub_stdh
                     i = i_bgn  # 回归i计数，结合最后的i加1一起理解
@@ -188,8 +152,6 @@ def gen_sub(sub_c,sub_h):  #给字幕打轴,sub_c表示自动字幕列表,sub_h�
         af_sub_c=""
         res=0
         res2=0
-        # print(i, sub_i, len(sub_c), len(sub_h))
-        # print(i,sub_c.__getitem__(i).content,sub_i,sub_h[sub_i])
     sub_file.writelines(srt.compose(sub_c))  #生成打轴后的字幕
     os.chdir('..')
 
@@ -222,9 +184,7 @@ def silence_based_conversion(path):
         print("Processing chunk " + str(i))
         r = sr.Recognizer()  #创建识别对象
         with sr.AudioFile(filename) as source:
-            # r.adjust_for_ambient_noise(source,duration=0.11)
             # r.adjust_for_ambient_noise(source)#有背景噪音的加上该语句，没有背景噪音的，不加反而识别率更高些
-            # audio_listened = r.listen(source) #和record效果好像没区别
             audio_listened = r.record(source)  #读取语音片段
         try:
             rec = r.recognize_google(audio_listened,language='zh')  #识别语音片段
