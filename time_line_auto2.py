@@ -2,22 +2,21 @@ import speech_recognition as sr
 import os,pinyin,srt,time,re
 from fuzzywuzzy import fuzz
 from pydub import AudioSegment
-from pydub.silence import split_on_silence, detect_silence,detect_nonsilent
+from pydub.silence import split_on_silence, detect_nonsilent
 
-
+#
 def comp_sub(c,h): #对比自动字幕和脚本字幕的匹配度，分数越高越匹配；c代表自动字幕，h代表脚本字幕
-    n=0
     ch_num = {'1': '一', '2': '二', '3': '三', '4': '四', '5': '五', '6': '六', '7': '七', '8': '八', '9': '九', '0': '零'}
-    af_h = re.sub(' ', "", re.sub(r'\W', "", re.sub(r'[\(\（]\w+[\)\）]', "", h)))
+    af_h = re.sub(' ', "", re.sub(r'\W', "", re.sub(r'[(（]\w+[)）]', "", h)))
     # 去除脚本字幕中的中英文标点符号、圆括号中的备注内容、空格
     c=re.sub('tzkcaNNotrecognize!',"",c)
     txt = c
     for n in ch_num:
-        txt = txt.replace(str(n), ch_num[n])
+        txt = txt.replace(n, ch_num[n])
     af_c = re.sub(' ', "", txt)  # 把自动字幕中的阿拉伯数字换成汉语数字，去除自动字幕中的空格
     txt = af_h
     for n in ch_num:
-        txt = txt.replace(str(n), ch_num[n])
+        txt = txt.replace(n, ch_num[n])
     af_h = re.sub(' ', "", txt)  # 把脚本字幕中的阿拉伯数字换成汉语数字，去除脚本字幕中的空格
     # 转换成拼音后进行比对
     c_py = pinyin.get(af_c, '', "strip")
@@ -29,7 +28,6 @@ def gen_sub(sub_c,sub_h):  #给字幕打轴,sub_c表示自动字幕列表,sub_h�
     dic_h={}   #用于记录所有脚本字幕的匹配评分
     dic_c={}   #用于记录所有自动字幕的匹配评分
     i = 0     #自动字幕序号（索引）
-    n = 0
     res = 0
     res2 = 0
     sub_i=0   #脚本字幕序号（索引）
@@ -37,26 +35,34 @@ def gen_sub(sub_c,sub_h):  #给字幕打轴,sub_c表示自动字幕列表,sub_h�
     sub_file = open(sub_path, "w+")  #为产生打轴的字幕做准备
 
     while (i < len(sub_c) and sub_i < len(sub_h)):  #只要不到最后一条脚本字幕和最后一条自动字幕就一直循环
-        af_sub_h = re.sub(' ', "", re.sub(r'\W', "", re.sub(r'[\(\（]\w+[\)\）]', "", sub_h[sub_i])))
+        af_sub_h = re.sub(' ', "", re.sub(r'\W', "", re.sub(r'[(（]\w+[)）]', "", sub_h[sub_i])))
         txt = af_sub_h
         for n in ch_num:
-            txt = txt.replace(str(n), ch_num[n])
+            txt = txt.replace(n, ch_num[n])
         af_sub_h = re.sub(' ', "", txt)  # 把脚本字幕中的阿拉伯数字换成汉语数字，去除脚本字幕中的空格
         #去除脚本字幕中的标点符号、圆括号中的内容、空格
         txt=sub_c.__getitem__(i).content
         for n in ch_num:
-            txt = txt.replace(str(n), ch_num[n]) #把自动字幕中的阿拉伯数字转换为汉字数字
+            txt = txt.replace(n, ch_num[n]) #把自动字幕中的阿拉伯数字转换为汉字数字
         af_sub_c = re.sub(' ', "", txt)  # 去除自动字幕中的空格
         ttt=sub_c.__getitem__(i).content  #为了debug时方便查看当前自动字幕
         zzz=sub_h[sub_i]                  #为了debug是方便查看当前脚本字幕
         # #匹配自动字幕和脚本字幕并获取分数
         res=comp_sub(sub_c.__getitem__(i).content,sub_h[sub_i])
 
-        if(res>score_1):   #如果匹配度大于score_1则直接将脚本字幕复制给自动字幕
+        if(res>score_1):   #如果匹配度大于90则直接将脚本字幕复制给自动字幕
             ttt = sub_c.__getitem__(i).content
             zzz = sub_h[sub_i]
             sub_c.__getitem__(i).content=sub_h[sub_i]
         elif (sub_c.__getitem__(i).content == "tzkcaNNotrecognize!"):  # 如果是没识别出的语音
+            #以下是为了便于调试程序
+            print("time:", audio_du[i])                          #当前语音时长
+            print("c_subtitle:", sub_c.__getitem__(i).content)   #当前自动字幕内容应该是"tzkcaNNotrecognize!"
+            print("h_subtitle:",sub_h[sub_i])                  #当前脚本字幕内容
+            print("h_length:",len(sub_h[sub_i].strip()))       #当前脚本字幕长度
+            print("h_duation:",len(sub_h[sub_i].strip())*word_l)  #读出当前脚本字幕可能需要的时间
+            print("h_duation:", audio_du[i] / (len(sub_h[sub_i].strip()) * word_l))
+            sub_tmp=re.sub(r'[(（]\w+[)）]',"",sub_h[sub_i].strip())
             time_tmp=audio_du[i]
             if((audio_du[i]/(len(sub_tmp)*word_l))>0.5): #这是模拟汉字字幕时的情况，如果中英文混杂，该模型误差较大
                 zzz = sub_h[sub_i]
@@ -67,7 +73,6 @@ def gen_sub(sub_c,sub_h):  #给字幕打轴,sub_c表示自动字幕列表,sub_h�
         elif((len(re.sub('[a-zA-Z]',"",af_sub_c))>len(re.sub('[a-zA-Z]',"",af_sub_h))) and sub_i+1<len(sub_h)): #如果自动字幕比脚本字幕长，且当前脚本字幕不是最后一条，则将下一个脚本字幕加入对比
             sub_stdc=sub_c.__getitem__(i).content  #对比用的自动字幕
             sub_tmp=sub_h[sub_i]
-            # res_h[sub_i] = res
             dic_h[str(sub_i)] = res  #保存第一次匹配的分数，为了方便匹配分数和相应的脚本字幕能一一对应上，我们把sub_i转换成字符串类型，作为字典的key
             sub_i = int(sub_i)  #后续还需要将sub_i作为脚本字幕序号进行累加，所以再从字符串类型转换成整数型
             sub_i_bgn = sub_i   #记住此次匹配时的第一个脚本字幕序号
@@ -87,10 +92,11 @@ def gen_sub(sub_c,sub_h):  #给字幕打轴,sub_c表示自动字幕列表,sub_h�
                         res2=comp_sub(sub_stdc,sub_tmp.strip()+sub_h[sub_i+1])
                     else:
                         break    #如果已经匹配过最后一条脚本字幕则跳出while循环
-                if (res>score_2):  #将匹配度最高，且大于score_2的脚本字幕赋值给自动字幕
+                if (res>score_2):  #将匹配度最高，且大于80分的脚本字幕赋值给自动字幕
                     ttt = sub_c.__getitem__(i).content
                     zzz = sub_h[sub_i]
                     sub_c.__getitem__(i).content = sub_tmp
+                # else:  #如果匹配度最高的得分低于80，则回退直至大于80或者回退到开始比对时的第一个脚本字幕（退无可退了）
                 else:    #如果匹配度最高的得分低于80，则回退至一开始比对的脚本字幕
                     sub_i=sub_i_bgn
                     sub_c.__getitem__(i).content = sub_h[sub_i]
@@ -113,10 +119,8 @@ def gen_sub(sub_c,sub_h):  #给字幕打轴,sub_c表示自动字幕列表,sub_h�
                     sub_tmp=sub_tmp+sub_c.__getitem__(i+1).content
                     i += 1
                     res=res2
-                    # res_c[i]=res
                     dic_c[str(i)] = res
-                    i=int(i)
-                    # if (sub_i + 1 < len(sub_h)):
+                    i = int(i)
                     if (i + 1 < len(sub_c)): #如果i+1不是最后一条自动字幕
                         ttt = sub_c.__getitem__(i+1).content
                         zzz = sub_h[sub_i]
@@ -152,6 +156,8 @@ def gen_sub(sub_c,sub_h):  #给字幕打轴,sub_c表示自动字幕列表,sub_h�
         af_sub_c=""
         res=0
         res2=0
+        # print(i, sub_i, len(sub_c), len(sub_h))
+        # print(i,sub_c.__getitem__(i).content,sub_i,sub_h[sub_i])
     sub_file.writelines(srt.compose(sub_c))  #生成打轴后的字幕
     os.chdir('..')
 
@@ -184,7 +190,9 @@ def silence_based_conversion(path):
         print("Processing chunk " + str(i))
         r = sr.Recognizer()  #创建识别对象
         with sr.AudioFile(filename) as source:
+            # r.adjust_for_ambient_noise(source,duration=0.11)
             # r.adjust_for_ambient_noise(source)#有背景噪音的加上该语句，没有背景噪音的，不加反而识别率更高些
+            # audio_listened = r.listen(source) #和record效果好像没区别
             audio_listened = r.record(source)  #读取语音片段
         try:
             rec = r.recognize_google(audio_listened,language='zh')  #识别语音片段
@@ -200,7 +208,7 @@ def silence_based_conversion(path):
             end_ms = str(chunk_time_line[i][1] % 1000)
             end = end_hhmmss + "," + end_ms
             subs.append(srt.Subtitle(index=i, start=srt.srt_timestamp_to_timedelta(start),
-                                     end=srt.srt_timestamp_to_timedelta(end), content=srt.make_legal_content(rec)))
+                                     end=srt.srt_timestamp_to_timedelta(end), content=str(srt.make_legal_content(rec))))
 
         except sr.UnknownValueError:  #如果语音识别不出来，则加入特殊的字符串用以标识该段语音
             print("\033[0;31;40mCould not understand audio\033[0m")
